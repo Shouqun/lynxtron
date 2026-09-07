@@ -103,9 +103,7 @@ function ensureAutoLinkModule(
     options.nativeOutputDir
   );
 
-  writeLynxtronAutoLinkModule(resolution, generatedModule, {
-    stagedLibraries,
-  });
+  writeLynxtronAutoLinkModule(generatedModule, stagedLibraries);
   const aliases = writeAutoLinkProxyModules(generatedDir, stagedLibraries);
   return {
     modulePath: generatedModule,

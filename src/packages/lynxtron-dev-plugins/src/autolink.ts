@@ -64,7 +64,6 @@ export interface LynxtronAutoLinkLibrary {
   appBundles: string[];
   appBundlePaths: string[];
   entry: string;
-  nodeModulesPath: string;
   warnings: string[];
 }
 
@@ -76,22 +75,12 @@ export interface LynxtronAutoLinkResolution {
   warnings: string[];
 }
 
-export interface LynxtronAutoLinkFileSet {
-  from: string;
-  to: string;
-  filter: string[];
-}
-
 export interface LynxtronAutoLinkStagedLibrary {
   name: string;
   sourcePath: string;
   stagedPath: string;
   requireSpecifier: string;
   files: string[];
-}
-
-export interface LynxtronAutoLinkCodegenOptions {
-  stagedLibraries?: LynxtronAutoLinkStagedLibrary[];
 }
 
 interface PackageJson {
@@ -263,7 +252,6 @@ export function resolveLynxtronAutoLinks(
       appBundles,
       appBundlePaths,
       entry,
-      nodeModulesPath: packageNameToNodeModulesPath(dependencyName),
       warnings: libraryWarnings,
     });
   }
@@ -275,16 +263,6 @@ export function resolveLynxtronAutoLinks(
     libraries,
     warnings,
   };
-}
-
-export function createLynxtronAutoLinkFileSets(
-  resolution: LynxtronAutoLinkResolution
-): LynxtronAutoLinkFileSet[] {
-  return resolution.libraries.map((library) => ({
-    from: library.packageRoot,
-    to: library.nodeModulesPath,
-    filter: getAutoLinkPackageFiles(library),
-  }));
 }
 
 export function createLynxtronAutoLinkStagedLibraries(
@@ -312,56 +290,15 @@ export function createLynxtronAutoLinkStagedLibraries(
   return stagedLibraries;
 }
 
-export function generateLynxtronAutoLinkCode(
-  resolution: LynxtronAutoLinkResolution,
-  options: LynxtronAutoLinkCodegenOptions = {}
-): string {
-  if (options.stagedLibraries !== undefined) {
-    return generateLynxtronAutoLinkStagedCode(options.stagedLibraries);
-  }
-
-  if (resolution.libraries.length === 0) {
-    return 'export {};\n';
-  }
-
-  const specifiers = resolution.libraries.map((library) =>
-    getNodeApiPackageSpecifier(library.name)
-  );
-
-  return `import { createRequire as __createRequire } from 'node:module';
-
-const __lynxtronAutoLinkRequire = typeof __non_webpack_require__ === 'function'
-  ? __non_webpack_require__
-  : __createRequire(
-      typeof __filename === 'string' ? __filename : import.meta.url,
-    );
-const __lynxtronAutoLinkNodeApiAddons = new Set();
-const __lynxtronAutoLinkLibraries = ${JSON.stringify(specifiers)};
-
-function __lynxtronAutoLinkLoadNodeApiAddon(specifier) {
-  const loadPath = __lynxtronAutoLinkRequire.resolve(specifier);
-
-  if (__lynxtronAutoLinkNodeApiAddons.has(loadPath)) {
-    return;
-  }
-
-  __lynxtronAutoLinkRequire(specifier);
-  __lynxtronAutoLinkNodeApiAddons.add(loadPath);
-}
-
-for (const __lynxtronAutoLinkSpecifier of __lynxtronAutoLinkLibraries) {
-  __lynxtronAutoLinkLoadNodeApiAddon(__lynxtronAutoLinkSpecifier);
-}
-`;
-}
-
 export function writeLynxtronAutoLinkModule(
-  resolution: LynxtronAutoLinkResolution,
   filePath: string,
-  options: LynxtronAutoLinkCodegenOptions = {}
+  stagedLibraries: LynxtronAutoLinkStagedLibrary[]
 ): string {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, generateLynxtronAutoLinkCode(resolution, options));
+  fs.writeFileSync(
+    filePath,
+    generateLynxtronAutoLinkStagedCode(stagedLibraries)
+  );
   return filePath;
 }
 
