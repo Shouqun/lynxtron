@@ -641,21 +641,21 @@ jobs:
           # protocol is resolved correctly (npm does not support it).
           cd ${{ github.workspace }}/lynxtron/src
           node tools/yarn.js install --immutable --mode=skip-build
-          cd "$PACKAGE_DIR"
+          # Let the package prepare headers, compile, and stage its own artifacts.
+          export npm_config_platform="$PLATFORM"
+          export npm_config_arch="$ARCH"
           if [ "$ARCH" = "arm64" ]; then
             export CMAKE_OSX_ARCHITECTURES=arm64
-            npx cmake-js build
+            node tools/yarn.js workspace @lynx-js/cef-webview build
           else
             export CMAKE_OSX_ARCHITECTURES=x86_64
-            arch -x86_64 npx cmake-js build
+            arch -x86_64 node tools/yarn.js workspace @lynx-js/cef-webview build
           fi
           ROOT_NAME="cef_webview-v${VERSION}-${PLATFORM}-${ARCH}"
           TMP_DIR="$PACKAGE_DIR/_pack_tmp_${ARCH}"
           rm -rf "$TMP_DIR"
           mkdir -p "$TMP_DIR/$ROOT_NAME"
-          cp ./build/Release/cef_extension.node "$TMP_DIR/$ROOT_NAME/"
-          mkdir -p "$TMP_DIR/$ROOT_NAME/frameworks"
-          cp -R ./build/frameworks/Contents/Frameworks/* "$TMP_DIR/$ROOT_NAME/frameworks/"
+          cp -R "$PACKAGE_DIR/dist/$PLATFORM/$ARCH/." "$TMP_DIR/$ROOT_NAME/"
           mkdir -p ${{ github.workspace }}/lynxtron/publish
           cd "$TMP_DIR"
           zip -ry "${{ github.workspace }}/lynxtron/publish/${ROOT_NAME}.zip" "$ROOT_NAME"
