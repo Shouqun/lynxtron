@@ -17,7 +17,10 @@ const releaseWorkflowPath = path.resolve(
 );
 const releaseWorkflow = yaml.load(fs.readFileSync(releaseWorkflowPath, 'utf8'));
 const changesetConfig = JSON.parse(
-  fs.readFileSync(path.resolve(__dirname, '../../../.changeset/config.json'), 'utf8')
+  fs.readFileSync(
+    path.resolve(__dirname, '../../../.changeset/config.json'),
+    'utf8'
+  )
 );
 const workspacePackage = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8')
@@ -101,7 +104,10 @@ test('every publish job uses the immutable revision resolved from the requested 
   const releaseStep = jobs['create-release'].steps.find(
     (step) => step.uses === 'ncipollo/release-action@v1'
   );
-  assert.equal(releaseStep.with.commit, '${{ needs.get-version.outputs.source_sha }}');
+  assert.equal(
+    releaseStep.with.commit,
+    '${{ needs.get-version.outputs.source_sha }}'
+  );
   assert.equal(
     releaseStep.with.prerelease,
     "${{ needs.get-version.outputs.prerelease == 'true' }}"
@@ -115,8 +121,14 @@ test('manual publishes are alpha-only while reusable publishes are stable-only',
   const versionScript = jobs['get-version'].steps.find(
     (step) => step.name === 'Validate and set version'
   ).run;
-  assert.match(versionScript, /manually dispatched branch releases must use an alpha version/);
-  assert.match(versionScript, /Changesets releases from main must use a stable version/);
+  assert.match(
+    versionScript,
+    /manually dispatched branch releases must use an alpha version/
+  );
+  assert.match(
+    versionScript,
+    /Changesets releases from main must use a stable version/
+  );
 });
 
 test('Changesets creates a version PR and publishes an unpublished stable version from main', () => {
@@ -161,15 +173,17 @@ test('all packages published by the runtime workflow use one Changesets version'
     'lynxtron-rebuild',
   ];
   assert.equal(changesetConfig.changelog, '@changesets/cli/changelog');
-  assert.deepEqual(changesetConfig.fixed, [[
-    '@lynx-js/cef-webview',
-    '@lynx-js/lynx-library-headers',
-    '@lynx-js/lynxtron',
-    '@lynx-js/lynxtron-builder',
-    '@lynx-js/lynxtron-dev-plugins',
-    '@lynx-js/lynxtron-rebuild',
-    'create-lynxtron',
-  ]]);
+  assert.deepEqual(changesetConfig.fixed, [
+    [
+      '@lynx-js/cef-webview',
+      '@lynx-js/lynx-library-headers',
+      '@lynx-js/lynxtron',
+      '@lynx-js/lynxtron-builder',
+      '@lynx-js/lynxtron-dev-plugins',
+      '@lynx-js/lynxtron-rebuild',
+      'create-lynxtron',
+    ],
+  ]);
   assert.ok(workspacePackage.workspaces.includes('packages/cef-webview'));
   assert.ok(workspacePackage.workspaces.includes('packages/lynxtron-rebuild'));
 
@@ -185,7 +199,10 @@ test('all packages published by the runtime workflow use one Changesets version'
   assert.equal(new Set(publishedVersions).size, 1);
 
   const cefManifest = JSON.parse(
-    fs.readFileSync(path.resolve(__dirname, '../../cef-webview/package.json'), 'utf8')
+    fs.readFileSync(
+      path.resolve(__dirname, '../../cef-webview/package.json'),
+      'utf8'
+    )
   );
   assert.equal(cefManifest.devDependencies['@lynx-js/lynxtron'], 'workspace:*');
   assert.match(
@@ -299,21 +316,20 @@ test('macOS releases publish both universal slice architectures', () => {
   );
 });
 
-test('macOS publish jobs preserve sibling architectures and cache CEF dependencies', () => {
+test('macOS CEF publishes use the same target-aware build entry as local builds', () => {
   assert.equal(jobs['build-macos'].strategy['fail-fast'], false);
   assert.equal(jobs['build-cef-webview-macos'].strategy['fail-fast'], false);
 
   const cefJob = jobs['build-cef-webview-macos'];
-  const cacheStep = cefJob.steps.find(
-    (step) => step.uses === './lynxtron/.github/actions/common-deps'
+  const build = cefJob.steps.find((step) => step.name === 'Build CEF webview');
+  assert.match(
+    build.run,
+    /python3 lynxtron_tools\/build_cef_webview.py --arch/
   );
-  assert.ok(cacheStep, 'CEF builds must restore and save the Habitat cache');
-  assert.equal(cacheStep.with['run-habitat-sync'], 'false');
-
-  const prepareStep = cefJob.steps.find((step) => step.name === 'Prepare environment');
-  assert.equal(prepareStep.env.HABITAT_CONCURRENCY, 2);
-  assert.match(prepareStep.run, /for attempt in 1 2 3/);
-  assert.match(prepareStep.run, /10 \* \(2 \*\* \(attempt - 1\)\)/);
+  assert.ok(build.run.includes('${{ matrix.arch }}'));
+  assert.ok(build.run.includes('${{ needs.get-version.outputs.version }}'));
+  assert.equal(cefJob.steps.filter((step) => step.run).length, 1);
+  assert.doesNotMatch(build.run, /arch -x86_64|brew install|cmake-js/);
 });
 
 test('pull request CI builds every published architecture', () => {
@@ -330,11 +346,8 @@ test('pull request CI builds every published architecture', () => {
   const windowsCefBuild = ciJobs['windows-lynxtron-build'].steps.find(
     (step) => step.name === 'Build Windows CEF webview'
   );
-  assert.match(windowsCefBuild.run, /@lynx-js\/cef-webview build/);
-  assert.match(
-    windowsCefBuild.run,
-    /dist\\win32\\\$\{\{ matrix\.arch \}\}\\cef_extension\.node/
-  );
+  assert.match(windowsCefBuild.run, /build_cef_webview\.ps1/);
+  assert.match(windowsCefBuild.run, /-Arch "\$\{\{ matrix\.arch \}\}"/);
 });
 
 test('Windows release publishes the CEF webview archive consumed by postinstall', () => {
@@ -342,8 +355,7 @@ test('Windows release publishes the CEF webview archive consumed by postinstall'
   const buildStep = windowsJob.steps.find(
     (step) => step.name === 'Build Windows CEF webview'
   );
-  assert.match(buildStep.run, /@lynx-js\/cef-webview build/);
-  assert.match(buildStep.run, /libcef\.dll/);
+  assert.match(buildStep.run, /build_cef_webview\.ps1/);
 
   const uploadStep = windowsJob.steps.find(
     (step) => step.name === 'Upload Windows CEF webview artifact'
@@ -355,6 +367,39 @@ test('Windows release publishes the CEF webview archive consumed by postinstall'
   );
 });
 
+test('Windows CEF links the runtime built earlier in the same job', () => {
+  const script = fs.readFileSync(
+    path.resolve(__dirname, '../../../../lynxtron_tools/build_cef_webview.ps1'),
+    'utf8'
+  );
+  assert.match(script, /out\\Release\\lynxtron\.dll\.lib/);
+  assert.match(script, /LYNXTRON_IMPORT_LIB = \$ImportLibrary/);
+  assert.match(script, /@lynx-js\/cef-webview build/);
+  assert.match(script, /--target extension --target-only/);
+  assert.match(
+    script,
+    /'cef_extension.node', 'cef_subprocess.exe', 'libcef.dll'/
+  );
+  assert.ok(script.indexOf('Missing source-built') < script.indexOf('hab.ps1'));
+  assert.match(
+    script,
+    /finally[\s\S]*SetEnvironmentVariable[\s\S]*Pop-Location/
+  );
+  for (const job of [ciJobs['windows-lynxtron-build'], jobs['build-windows']]) {
+    const runtime = job.steps.findIndex(
+      (step) => step.name === 'Build Windows Lynxtron'
+    );
+    const cef = job.steps.findIndex(
+      (step) => step.name === 'Build Windows CEF webview'
+    );
+    assert.ok(runtime >= 0 && cef > runtime);
+    assert.equal(
+      job.steps[cef].run.trim(),
+      '& "${{ github.workspace }}\\lynxtron\\lynxtron_tools\\build_cef_webview.ps1" -Arch "${{ matrix.arch }}"'
+    );
+  }
+});
+
 test('Windows builds use and validate the pinned resource compiler', () => {
   const buildStep = windowsBuildAction.runs.steps.find(
     (step) => step.name === 'Build Lynxtron'
@@ -363,12 +408,24 @@ test('Windows builds use and validate the pinned resource compiler', () => {
   const compilerPath = 'build\\toolchain\\win\\rc\\win\\rc.exe';
 
   assert.ok(windowsEnvSetupSource.includes(compilerPath));
-  assert.match(windowsEnvSetupSource, /Test-Path -LiteralPath \$resourceCompiler -PathType Leaf/);
-  assert.match(windowsEnvSetupSource, /\$env:PATH = "\$resourceCompilerDir;\$env:PATH"/);
+  assert.match(
+    windowsEnvSetupSource,
+    /Test-Path -LiteralPath \$resourceCompiler -PathType Leaf/
+  );
+  assert.match(
+    windowsEnvSetupSource,
+    /\$env:PATH = "\$resourceCompilerDir;\$env:PATH"/
+  );
 
   assert.ok(buildScript.includes(compilerPath));
-  assert.match(buildScript, /Test-Path -LiteralPath \$resourceCompiler -PathType Leaf/);
-  assert.match(buildScript, /Get-Command rc\.exe -CommandType Application -ErrorAction Stop/);
+  assert.match(
+    buildScript,
+    /Test-Path -LiteralPath \$resourceCompiler -PathType Leaf/
+  );
+  assert.match(
+    buildScript,
+    /Get-Command rc\.exe -CommandType Application -ErrorAction Stop/
+  );
   assert.match(buildScript, /StringComparison\]::OrdinalIgnoreCase/);
   assert.ok(
     buildScript.indexOf('Get-Command rc.exe') <

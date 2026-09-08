@@ -395,7 +395,7 @@ test('AutoLink accepts only the prerelease Lynxtron artifact schema', async () =
               {
                 os: 'darwin',
                 arch: 'arm64',
-                files: ['../outside', 'dist/native.node', 'dist/frameworks'],
+                files: ['dist/native.node', 'dist/frameworks'],
                 frameworks: ['dist/Fixture.framework'],
               },
             ],
@@ -409,9 +409,7 @@ test('AutoLink accepts only the prerelease Lynxtron artifact schema', async () =
         root: tempDir,
         platform: 'darwin',
         arch: 'arm64',
-      }).libraries.map(
-        ({ files, frameworks }) => ({ files, frameworks })
-      ),
+      }).libraries.map(({ files, frameworks }) => ({ files, frameworks })),
       [
         {
           files: ['dist/native.node', 'dist/frameworks'],

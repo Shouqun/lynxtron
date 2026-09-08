@@ -26,6 +26,12 @@ Selection precedence is command line, `LYNXTRON_RUNTIME_VARIANT`, `electron-buil
 keeps it outside ASAR so native addons and adjacent runtime files remain
 loadable.
 
+Every `lynx.lib.json` target must use literal package-relative artifact paths
+and standard `os` (`darwin`, `win32`, `linux`) and `arch` (`arm64`, `x64`, `ia32`)
+names. Variables, globs, and aliases are rejected. The builder selects the
+packaging target from the original staged manifest; it does not expand or
+rewrite that manifest.
+
 For macOS targets, Frameworks and nested applications declared by the selected
 `platforms.lynxtron.targets` record are copied into `Contents/Frameworks` with
 their symbolic links preserved. Nested applications use `appBundles` and are

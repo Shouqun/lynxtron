@@ -99,6 +99,12 @@ artifacts together with the package metadata and `./lynxtron` entry. The opaque
 top-level `path` and artifact fields outside a target are not supported by this
 prerelease schema.
 
+Library producers must publish literal package-relative artifact paths in every
+target; variables and globs are not supported. Use standard `os` values
+(`darwin`, `win32`, `linux`) and `arch` values (`arm64`, `x64`, `ia32`), not
+aliases such as `macos` or `x86_64`. AutoLink selects the build target without
+expanding paths or rewriting the staged `lynx.lib.json`.
+
 ```ts
 import { pluginLynxtron } from '@lynx-js/lynxtron-dev-plugins/rspack';
 

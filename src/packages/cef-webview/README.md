@@ -41,21 +41,44 @@ Once initialized, you can use the `<webview>` element in your Lynx templates:
 
 ### Prerequisites
 
-- Node.js >= 18
-- CMake
-- CEF SDK
+- macOS with Xcode Command Line Tools, Python 3, Git, and network access.
 
 ### Build Steps
 
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Build the native addon:
-   ```bash
-   npx cmake-js build
-   ```
+From the repository root, use the same entry point as the release workflow:
+
+```bash
+python3 lynxtron_tools/build_cef_webview.py --arch x64
+```
+
+Use `--arch arm64` for Apple Silicon output. The script prepares host-native
+Node and CMake, the pinned Lynx source and headers, and the target CEF SDK via
+the shared build environment setup and Habitat. The separate
+`prepare_mac_cross_compile_env.py` configures the target before dependency sync;
+the build entry calls the package's normal `build` command and checks the
+architecture of the addon, framework, and helper executables. An M1 host can
+produce x64 output without running Node under Rosetta. Use a clean checkout:
+the shared preparation synchronizes dependencies and applies repository patches.
+
+Add `--version <version>` to create the release zip in `publish/`.
+
+When building CEF against a Windows runtime built from source, set
+`LYNXTRON_IMPORT_LIB` to the absolute path of that build's
+`out/Release/lynxtron.dll.lib` before invoking the package's `build` command.
+The build validates the file and forwards it to CMake; an invalid override
+fails instead of falling back to an installed runtime. Without an override,
+the existing npm runtime import-library resolution remains in effect.
+
+For Windows source builds, after building the Lynxtron runtime, invoke the same
+entry point used by CI and publishing from PowerShell:
+
+```powershell
+.\lynxtron_tools\build_cef_webview.ps1 -Arch x64
+```
+
+It configures the build environment, syncs the CEF SDK, passes the source-built
+import library, calls the package build, and checks the addon, subprocess and
+CEF DLL. Environment variables and the working directory are restored on exit.
 
 ## Dependencies
 

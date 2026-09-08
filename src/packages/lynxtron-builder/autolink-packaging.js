@@ -99,6 +99,21 @@ function discoverAutoLinkLibraries({ appDirectory, platform, arch }) {
       continue;
     }
 
+    for (const target of Array.isArray(lynxtron.targets)
+      ? lynxtron.targets
+      : []) {
+      if (
+        !['darwin', 'win32', 'linux'].includes(target?.os) ||
+        !['arm64', 'x64', 'ia32'].includes(target?.arch)
+      ) {
+        throw new Error(
+          `${manifestPath} requires standard os/arch names, got ${target?.os}/${target?.arch}`
+        );
+      }
+      for (const field of ['files', 'frameworks', 'appBundles']) {
+        validateFixedArtifactPaths(target[field], manifestPath, field);
+      }
+    }
     const targets = Array.isArray(lynxtron.targets)
       ? lynxtron.targets.filter(
           (entry) => entry?.os === platform && entry?.arch === arch
@@ -217,6 +232,31 @@ function listPackageRoots(nodeModulesDirectory) {
     }
   }
   return roots;
+}
+
+function validateFixedArtifactPaths(paths, manifestPath, field) {
+  if (paths === undefined) return;
+  if (!Array.isArray(paths) || paths.length === 0) {
+    throw new Error(`${manifestPath} has an invalid ${field} declaration`);
+  }
+  for (const value of paths) {
+    const relativePath =
+      typeof value === 'string' ? value.replaceAll('\\', '/') : '';
+    if (
+      !relativePath ||
+      relativePath.includes('${') ||
+      /[*?\[\]{}]/.test(relativePath) ||
+      path.posix.isAbsolute(relativePath) ||
+      /^[A-Za-z]:\//.test(relativePath) ||
+      relativePath.split('/').includes('..')
+    ) {
+      throw new Error(
+        `${manifestPath} requires fixed package-relative artifact paths in ${field}, got ${String(
+          value
+        )}`
+      );
+    }
+  }
 }
 
 function resolveArtifactPaths({

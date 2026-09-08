@@ -13,21 +13,8 @@ const DEFAULT_DEPENDENCY_FIELDS = [
 ] as const;
 export const DEFAULT_LYNXTRON_NATIVE_OUTPUT_DIR = '.lynxtron/native';
 
-const PLATFORM_ALIASES: Record<string, string[]> = {
-  darwin: ['macos', 'darwin'],
-  macos: ['macos', 'darwin'],
-  win32: ['windows', 'win32'],
-  windows: ['windows', 'win32'],
-  linux: ['linux'],
-};
-
-const ARCH_ALIASES: Record<string, string[]> = {
-  arm64: ['arm64'],
-  x64: ['x64', 'x86_64'],
-  x86_64: ['x64', 'x86_64'],
-  ia32: ['ia32', 'x86'],
-  x86: ['ia32', 'x86'],
-};
+const MANIFEST_PLATFORMS = new Set(['darwin', 'win32', 'linux']);
+const MANIFEST_ARCHITECTURES = new Set(['arm64', 'x64', 'ia32']);
 
 export interface LynxtronAutoLinkOptions {
   root?: string;
@@ -141,40 +128,16 @@ export function resolveLynxtronAutoLinks(
       continue;
     }
 
-    const files = matchedEntry.files.map((filePath) =>
-      expandManifestVariables(
-        filePath,
-        platform,
-        arch,
-        matchedEntry.platformKey,
-        matchedEntry.archKey
-      )
-    );
+    const files = matchedEntry.files;
 
     const filePaths = files.map((filePath) =>
       path.join(resolvedPackage.packageRoot, filePath)
     );
-    const frameworks = matchedEntry.frameworks.map((frameworkPath) =>
-      expandManifestVariables(
-        frameworkPath,
-        platform,
-        arch,
-        matchedEntry.platformKey,
-        matchedEntry.archKey
-      )
-    );
+    const frameworks = matchedEntry.frameworks;
     const frameworkPaths = frameworks.map((frameworkPath) =>
       path.join(resolvedPackage.packageRoot, frameworkPath)
     );
-    const appBundles = matchedEntry.appBundles.map((appBundlePath) =>
-      expandManifestVariables(
-        appBundlePath,
-        platform,
-        arch,
-        matchedEntry.platformKey,
-        matchedEntry.archKey
-      )
-    );
+    const appBundles = matchedEntry.appBundles;
     const appBundlePaths = appBundles.map((appBundlePath) =>
       path.join(resolvedPackage.packageRoot, appBundlePath)
     );
@@ -570,7 +533,7 @@ function matchNodeApiManifestEntry(
 
   const frameworks = normalizeLibraryPaths(target.entry.frameworks);
   if (frameworks.length > 0) {
-    if (!matchesManifestKey('darwin', runtimePlatform, PLATFORM_ALIASES)) {
+    if (runtimePlatform !== 'darwin') {
       throw new Error(
         'Lynxtron AutoLink only supports frameworks for darwin targets.'
       );
@@ -584,7 +547,7 @@ function matchNodeApiManifestEntry(
 
   const appBundles = normalizeLibraryPaths(target.entry.appBundles);
   if (appBundles.length > 0) {
-    if (!matchesManifestKey('darwin', runtimePlatform, PLATFORM_ALIASES)) {
+    if (runtimePlatform !== 'darwin') {
       throw new Error(
         'Lynxtron AutoLink only supports appBundles for darwin targets.'
       );
@@ -616,15 +579,20 @@ function matchRuntimeTarget(
   }> = [];
 
   for (const target of normalizeRuntimeTargets(targets)) {
-    const os = readOptionalString(target.os);
-    const targetArch = readOptionalString(target.arch);
-
+    const { os, arch: targetArch } = target;
     if (
-      os === undefined ||
-      targetArch === undefined ||
-      !matchesManifestKey(runtimePlatform, os, PLATFORM_ALIASES) ||
-      !matchesManifestKey(runtimeArch, targetArch, ARCH_ALIASES)
+      !MANIFEST_PLATFORMS.has(os) ||
+      !MANIFEST_ARCHITECTURES.has(targetArch)
     ) {
+      throw new Error(
+        `Lynxtron AutoLink requires standard os/arch names, got ${os}/${targetArch}.`
+      );
+    }
+    // Validate every declaration, including targets not selected on this host.
+    for (const field of ['files', 'frameworks', 'appBundles'] as const) {
+      normalizeLibraryPaths(target[field]);
+    }
+    if (runtimePlatform !== os || runtimeArch !== targetArch) {
       continue;
     }
 
@@ -659,31 +627,31 @@ function normalizeRuntimeTargets(value: unknown): LynxtronRuntimeTarget[] {
   return entries;
 }
 
-function getManifestKeys(
-  value: string,
-  aliases: Record<string, string[]>
-): string[] {
-  return Array.from(new Set(aliases[value] ?? [value]));
-}
-
-function matchesManifestKey(
-  runtimeValue: string,
-  manifestValue: string,
-  aliases: Record<string, string[]>
-): boolean {
-  return getManifestKeys(runtimeValue, aliases).includes(manifestValue);
-}
-
 function normalizeLibraryPaths(value: unknown): string[] {
-  const values = Array.isArray(value) ? value : [value];
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(
+      'Lynxtron AutoLink artifact paths must be non-empty arrays.'
+    );
+  }
+  const values = value;
   const paths: string[] = [];
 
   for (const item of values) {
     const libraryPath = normalizeRelativePath(item);
 
-    if (libraryPath !== undefined) {
-      paths.push(libraryPath);
+    if (
+      !libraryPath ||
+      libraryPath.includes('${') ||
+      /[*?\[\]{}]/.test(libraryPath)
+    ) {
+      throw new Error(
+        `Lynxtron AutoLink requires fixed package-relative artifact paths, got ${String(
+          item
+        )}.`
+      );
     }
+    paths.push(libraryPath);
   }
 
   return paths;
@@ -735,20 +703,6 @@ function getAutoLinkPackageFiles(library: LynxtronAutoLinkLibrary): string[] {
   );
 }
 
-function expandManifestVariables(
-  value: string,
-  platform: string,
-  arch: string,
-  manifestPlatform: string,
-  manifestArch: string
-): string {
-  return value
-    .replaceAll('${platform}', platform)
-    .replaceAll('${arch}', arch)
-    .replaceAll('${manifestPlatform}', manifestPlatform)
-    .replaceAll('${manifestArch}', manifestArch);
-}
-
 function packageNameToNodeModulesPath(packageName: string): string {
   return `node_modules/${packageName}`;
 }
@@ -772,10 +726,6 @@ function normalizeRelativePath(value: unknown): string | undefined {
   }
 
   return normalizedPath;
-}
-
-function readOptionalString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
 function normalizeFilterPath(value: string): string {
