@@ -52,6 +52,10 @@ def run_habitat_sync(command, description):
 def configure_habitat_environment():
     os.environ["GIT_LFS_SKIP_SMUDGE"] = "1"
     os.environ["HABITAT_CONCURRENCY"] = HABITAT_CONCURRENCY
+    # Patch commits need a default identity, scoped to this build process.
+    for role in ("AUTHOR", "COMMITTER"):
+        for field, value in (("NAME", "Lynxtron Scripts"), ("EMAIL", "scripts@lynxtron.com")):
+            os.environ.setdefault(f"GIT_{role}_{field}", value)
 
 
 def main():
