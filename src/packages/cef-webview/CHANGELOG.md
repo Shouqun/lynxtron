@@ -1,5 +1,17 @@
 # @lynx-js/cef-webview
 
+## 0.0.22
+
+### Patch Changes
+
+- 47a7358: Build Windows CEF against the source-built Lynxtron import library and stage the
+  addon, subprocess, and runtime resources through the package build command.
+  Restore macOS Framework links omitted by npm packaging and adopt the upstream
+  CEF fixes. Source builds can skip downloading an unpublished Lynxtron runtime.
+- 313b679: Build macOS CEF artifacts for an explicit target architecture using host-native
+  tools, Habitat-managed CMake and CEF SDKs, and the same entry point locally and
+  in the release workflow. Verify native artifact architectures before packaging.
+
 ## 0.0.21
 
 ### Patch Changes

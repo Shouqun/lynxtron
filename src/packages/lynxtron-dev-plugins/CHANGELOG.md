@@ -1,5 +1,7 @@
 # @lynx-js/lynxtron-dev-plugins
 
+## 0.0.22
+
 ## 0.0.21
 
 ### Patch Changes
