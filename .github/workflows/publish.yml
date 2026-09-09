@@ -611,6 +611,8 @@ jobs:
         shell: bash
         run: |
           cd ${{ github.workspace }}/lynxtron
+          git config --global user.name "Lynxtron Scripts"
+          git config --global user.email "scripts@lynxtron.com"
           python3 lynxtron_tools/build_cef_webview.py --arch "${{ matrix.arch }}" --version "${{ needs.get-version.outputs.version }}"
       - name: Upload CEF webview artifact
         uses: actions/upload-artifact@v4

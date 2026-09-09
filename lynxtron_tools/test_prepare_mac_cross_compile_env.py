@@ -1,3 +1,7 @@
+# Copyright 2026 The Lynxtron Authors. All rights reserved.
+# Licensed under the Apache License Version 2.0 that can be found in the
+# LICENSE file in the root directory of this source tree.
+
 import os
 import runpy
 import unittest
@@ -15,20 +19,33 @@ class MacCrossCompileTest(unittest.TestCase):
         self.assertEqual(intel['npm_config_arch'], 'x64')
         self.assertEqual(intel['npm_config_platform'], 'darwin')
         self.assertEqual(intel['LYNXTRON_SKIP_DOWNLOAD'], '1')
+        self.assertEqual(intel['PATH'].split(os.pathsep)[0], str(setup.ROOT / '.venv/bin'))
 
     def test_preparation_uses_shared_setup_then_habitat(self):
         with mock.patch.object(setup.platform, 'system', return_value='Darwin'), \
                 mock.patch.object(setup.subprocess, 'run') as run:
             env = setup.prepare('x64')
         calls = run.call_args_list
-        self.assertIn('prepare_build_env.py', calls[1].args[0][1])
-        self.assertEqual(calls[2].args[0][1:],
+        python = str(setup.ROOT / '.venv/bin/python3')
+        self.assertIn('vpython_env_setup.py', calls[1].args[0][1])
+        self.assertEqual(calls[1].args[0][2:], ['--root_dir', str(setup.ROOT)])
+        self.assertEqual(calls[2].args[0], [python, str(setup.ROOT / 'lynxtron_tools/prepare_build_env.py')])
+        self.assertEqual(calls[3].args[0][1:],
                          ['sync', '.', '--no-history', '--target', 'extension', '--target-only'])
-        self.assertEqual(calls[3].args[0][1], 'setup_deps.py')
-        self.assertEqual(calls[3].kwargs['cwd'], setup.ROOT / 'lynx/third_party/weak-node-api')
+        self.assertEqual(calls[4].args[0], [python, 'setup_deps.py'])
+        self.assertEqual(calls[4].kwargs['cwd'], setup.ROOT / 'lynx/third_party/weak-node-api')
+        self.assertEqual(env['VIRTUAL_ENV'], str(setup.ROOT / '.venv'))
         for call in calls:
             self.assertEqual(call.kwargs['env'], env)
             self.assertTrue(call.kwargs['check'])
+
+    def test_python_setup_failure_stops_before_habitat(self):
+        failure = setup.subprocess.CalledProcessError(1, 'vpython_env_setup.py')
+        with mock.patch.object(setup.platform, 'system', return_value='Darwin'), \
+                mock.patch.object(setup.subprocess, 'run', side_effect=[None, failure]) as run:
+            with self.assertRaises(setup.subprocess.CalledProcessError):
+                setup.prepare('arm64')
+        self.assertEqual(run.call_count, 2)
 
     def test_dependency_selection_separates_host_and_target(self):
         for target, suffix in [('x64', 'macosx64'), ('arm64', 'macosarm64')]:

@@ -274,6 +274,10 @@ test('macOS CEF publishes use the same target-aware build entry as local builds'
 
   const cefJob = jobs['build-cef-webview-macos'];
   const build = cefJob.steps.find((step) => step.name === 'Build CEF webview');
+  for (const field of ['name', 'email']) {
+    const config = build.run.indexOf(`git config --global user.${field}`);
+    assert.ok(config >= 0 && config < build.run.indexOf('python3 lynxtron_tools/'));
+  }
   assert.match(
     build.run,
     /python3 lynxtron_tools\/build_cef_webview.py --arch/
